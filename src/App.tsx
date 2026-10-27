@@ -10,6 +10,7 @@ import { PharmacyPage } from './views/PharmacyPage';
 import { ReferralsPage } from './views/ReferralsPage';
 import { PatientTrackerPage } from './views/PatientTrackerPage';
 import { ClinicalRecordsPage } from './views/ClinicalRecordsPage';
+import { LabReportsPage } from './views/LabReportsPage';
 
 const MainLayout: React.FC = () => {
   const { activeTab } = useApp();
@@ -29,6 +30,7 @@ const MainLayout: React.FC = () => {
         {activeTab === 'referrals' && <ReferralsPage />}
         {activeTab === 'tracker' && <PatientTrackerPage />}
         {activeTab === 'records' && <ClinicalRecordsPage />}
+        {activeTab === 'lab_reports' && <LabReportsPage />}
       </main>
 
       {/* Minimal Clean Footer */}

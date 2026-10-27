@@ -1,6 +1,6 @@
 // EnsureCare Simple & Fast Patient Journey Types
 
-export type PageTab = 'checkin' | 'doctor' | 'lab' | 'pharmacy' | 'referrals' | 'tracker' | 'tasks' | 'records';
+export type PageTab = 'checkin' | 'doctor' | 'lab' | 'pharmacy' | 'referrals' | 'tracker' | 'tasks' | 'records' | 'lab_reports';
 
 export type TaskType = 'lab_test' | 'pharmacy_pickup' | 'specialist_referral' | 'doctor_followup';
 export type EscalationLevel = 'none' | 'Level 1: Care Coordinator' | 'Level 2: Clinic Supervisor' | 'Level 3: Medical Director';

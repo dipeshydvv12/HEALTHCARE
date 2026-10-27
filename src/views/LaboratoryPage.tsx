@@ -1,6 +1,7 @@
 // LaboratoryPage.tsx - Step 3A: Laboratory Department with Appointment Date/Time, WhatsApp & Real AI Voice Call
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
+import { LabReportsPage } from './LabReportsPage';
 import {
   FlaskConical,
   CheckCircle2,
@@ -32,6 +33,7 @@ export const LaboratoryPage: React.FC = () => {
 
   const [enteringResultForId, setEnteringResultForId] = useState<string | null>(null);
   const [resultText, setResultText] = useState('Elevated cardiac biomarkers consistent with fluid retention.');
+  const [labView, setLabView] = useState<'orders' | 'reports'>('orders');
 
   // Test Call & Custom Voice Reminder Modal State
   const [activeCallPatient, setActiveCallPatient] = useState<(typeof patients)[0] | null>(null);
@@ -255,6 +257,14 @@ export const LaboratoryPage: React.FC = () => {
     return () => clearInterval(interval);
   }, [callState]);
 
+  if (labView === 'reports') {
+    return (
+      <div className="space-y-6">
+        <LabReportsPage onBackToOrders={() => setLabView('orders')} />
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-4xl mx-auto py-4 space-y-6">
       {/* Header */}
@@ -271,9 +281,38 @@ export const LaboratoryPage: React.FC = () => {
           </div>
         </div>
 
-        <span className="px-3 py-1 rounded-full text-xs font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20">
-          {labOrders.filter(o => o.routing.labStatus !== 'completed').length} Pending Test(s)
-        </span>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setLabView('reports')}
+            className="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-teal-400 text-slate-950 font-black text-xs shadow-md transition flex items-center gap-1.5 cursor-pointer hover:opacity-95"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-slate-950" />
+            <span>Open AI Reports &amp; Imaging Studio</span>
+          </button>
+
+          <span className="px-3 py-1 rounded-full text-xs font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20">
+            {labOrders.filter(o => o.routing.labStatus !== 'completed').length} Pending Test(s)
+          </span>
+        </div>
+      </div>
+
+      {/* Sub-navigation Switcher: Orders vs AI Reports Studio */}
+      <div className="flex items-center gap-2 p-1.5 bg-[#0B1426] border border-slate-800 rounded-2xl w-fit">
+        <button
+          onClick={() => setLabView('orders')}
+          className="px-4 py-2 rounded-xl text-xs font-bold bg-purple-600 text-white shadow-md flex items-center gap-2 cursor-pointer"
+        >
+          <FlaskConical className="w-3.5 h-3.5" />
+          <span>Specimen Orders &amp; Follow-Up ({labOrders.length})</span>
+        </button>
+
+        <button
+          onClick={() => setLabView('reports')}
+          className="px-4 py-2 rounded-xl text-xs font-bold text-cyan-300 hover:text-white hover:bg-slate-800/60 transition flex items-center gap-2 cursor-pointer"
+        >
+          <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+          <span>🔬 AI Reports &amp; Imaging Analysis (Image + PDF Models)</span>
+        </button>
       </div>
 
       {/* Orders List */}
@@ -420,6 +459,16 @@ export const LaboratoryPage: React.FC = () => {
                           Called ✓
                         </span>
                       )}
+                    </button>
+
+                    {/* 3. AI Scan & PDF Report Studio */}
+                    <button
+                      onClick={() => setLabView('reports')}
+                      className="px-3 py-2 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                      title="Analyze scan & PDF report using Medical AI Models (ResNet, Swin UNETR, BioBERT, Multimodal)"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                      <span>AI Scan &amp; Report Analysis</span>
                     </button>
                   </div>
 

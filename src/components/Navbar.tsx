@@ -37,6 +37,7 @@ export const Navbar: React.FC = () => {
     { id: 'checkin', label: '1. Clinic Check-in' },
     { id: 'doctor', label: '2. Doctor Desk' },
     { id: 'lab', label: '3. Laboratory' },
+    { id: 'lab_reports', label: '🔬 AI Lab Reports' },
     { id: 'pharmacy', label: '4. Pharmacy' },
     { id: 'referrals', label: '5. Referrals' },
     { id: 'tracker', label: '6. Patient Tracker' },
