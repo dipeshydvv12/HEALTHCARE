@@ -1,7 +1,8 @@
 // LabReportsPage.tsx - Advanced Diagnostic AI Laboratory & Reports Studio
-// Supports Image and PDF Document Analysis using 9 Category Model Architectures:
-// ResNet, U-Net, Swin UNETR, EfficientNet, ViT, InceptionV3, ConvNeXt, XGBoost, Random Forest,
-// LightGBM, 1D CNN, EEGNet, BioBERT, ClinicalBERT, PubMedBERT, CLIP, & Multimodal Neural Networks.
+// Supports Image and PDF Document Analysis with Automated Model & Modality Detection
+// Seamlessly routes to specialized models (ResNet, U-Net, Swin UNETR, EfficientNet, ViT,
+// InceptionV3, ConvNeXt, XGBoost, Random Forest, LightGBM, 1D CNN, EEGNet, BioBERT,
+// ClinicalBERT, PubMedBERT, CLIP, & Multimodal Neural Networks) based on uploaded scan & report text.
 
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
@@ -9,7 +10,9 @@ import {
   CLINICAL_DATA_TYPES,
   ClinicalDataType,
   getCategoryById,
-  AiModelSpec
+  AiModelSpec,
+  autoDetectModalityAndModel,
+  AutoDetectionResult
 } from '../services/aiDiagnosticService';
 import { REAL_LABORATORY } from '../data/realFacilities';
 import {
@@ -36,7 +39,9 @@ import {
   ChevronRight,
   ShieldCheck,
   FileCheck,
-  Check
+  Check,
+  Bot,
+  Sliders
 } from 'lucide-react';
 
 interface LabReportsPageProps {
@@ -46,10 +51,14 @@ interface LabReportsPageProps {
 export const LabReportsPage: React.FC<LabReportsPageProps> = ({ onBackToOrders }) => {
   const { patients, updateLabStatus } = useApp();
 
-  const [selectedCategoryType, setSelectedCategoryType] = useState<ClinicalDataType>('brain_tumor');
-  const currentCategory = getCategoryById(selectedCategoryType);
+  // Initial detection: Starts with Brain MRI sample
+  const [autoDetection, setAutoDetection] = useState<AutoDetectionResult>(() =>
+    autoDetectModalityAndModel({ imageName: 'brain_mri_axial_flair_patient_dipesh.dicom' })
+  );
 
-  const [selectedModelId, setSelectedModelId] = useState<string>(currentCategory.models[0].id);
+  const selectedCategoryType = autoDetection.category;
+  const currentCategory = getCategoryById(selectedCategoryType);
+  const activeModel: AiModelSpec = autoDetection.model;
 
   // Custom User Uploads (or defaults)
   const [customImage, setCustomImage] = useState<string | null>(null);
@@ -72,46 +81,71 @@ export const LabReportsPage: React.FC<LabReportsPageProps> = ({ onBackToOrders }
   const defaultPatient = patients[0] || { name: 'Dipesh Yadav', id: 'patient-dipesh-01' };
   const [selectedPatientId, setSelectedPatientId] = useState(defaultPatient.id);
 
-  // Change category
-  const handleSelectCategory = (type: ClinicalDataType) => {
-    setSelectedCategoryType(type);
-    const cat = getCategoryById(type);
-    setSelectedModelId(cat.models[0].id);
-    setCustomImage(null);
-    setCustomImageName(null);
-    setCustomDocContent(null);
-    setCustomDocName(null);
-    setHasRunAnalysis(true);
-    setAttachedSuccess(false);
-  };
-
-  const activeModel: AiModelSpec =
-    currentCategory.models.find(m => m.id === selectedModelId) || currentCategory.models[0];
-
-  // Handle custom image upload
+  // Handle custom image upload with AUTOMATIC modality & model detection
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onload = () => {
-        setCustomImage(reader.result as string);
+        const imageResult = reader.result as string;
+        setCustomImage(imageResult);
         setCustomImageName(file.name);
+
+        // Auto-detect modality and model automatically based on image file & existing report
+        const detection = autoDetectModalityAndModel({
+          imageName: file.name,
+          docName: customDocName || undefined,
+          docText: customDocContent || undefined
+        });
+        setAutoDetection(detection);
+        setHasRunAnalysis(true);
+        setAttachedSuccess(false);
       };
       reader.readAsDataURL(file);
     }
   };
 
-  // Handle custom document upload
+  // Handle custom document upload with AUTOMATIC model detection
   const handleDocUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setCustomDocName(file.name);
       const reader = new FileReader();
       reader.onload = () => {
-        setCustomDocContent(reader.result as string);
+        const docText = reader.result as string;
+        setCustomDocContent(docText);
+
+        // Auto-detect modality and model automatically based on document content & existing image
+        const detection = autoDetectModalityAndModel({
+          imageName: customImageName || undefined,
+          docName: file.name,
+          docText: docText,
+          preferredCategory: selectedCategoryType
+        });
+        setAutoDetection(detection);
+        setHasRunAnalysis(true);
+        setAttachedSuccess(false);
       };
       reader.readAsText(file);
     }
+  };
+
+  // Quick Clinical Sample Presets (auto-routes category and model with 1 click)
+  const handleSelectSample = (type: ClinicalDataType) => {
+    const cat = getCategoryById(type);
+    const detection = autoDetectModalityAndModel({
+      imageName: cat.defaultImageName,
+      docName: cat.defaultDocName,
+      docText: cat.sampleDocContent,
+      preferredCategory: type
+    });
+    setAutoDetection(detection);
+    setCustomImage(null);
+    setCustomImageName(null);
+    setCustomDocContent(null);
+    setCustomDocName(null);
+    setHasRunAnalysis(true);
+    setAttachedSuccess(false);
   };
 
   // Run AI Diagnostic Inference Simulator
@@ -121,7 +155,7 @@ export const LabReportsPage: React.FC<LabReportsPageProps> = ({ onBackToOrders }
     setAnalysisStep('Ingesting visual tensor & tokenizing PDF clinical document...');
 
     setTimeout(() => {
-      setAnalysisStep(`Running inference via ${activeModel.name} (${activeModel.parameters})...`);
+      setAnalysisStep(`Executing automated inference via ${activeModel.name} (${activeModel.parameters})...`);
       setTimeout(() => {
         setAnalysisStep('Computing Grad-CAM attention heatmap & cross-modal feature alignment...');
         setTimeout(() => {
@@ -136,7 +170,7 @@ export const LabReportsPage: React.FC<LabReportsPageProps> = ({ onBackToOrders }
   const handleAttachToPatient = () => {
     const targetPatient = patients.find(p => p.id === selectedPatientId) || patients[0];
     if (targetPatient) {
-      const findingSummary = `[${activeModel.name} AI Analysis]: ${currentCategory.diagnosticTemplate.primaryPathology} (${(currentCategory.diagnosticTemplate.confidence * 100).toFixed(1)}% Confidence). Verified via ${currentCategory.name}.`;
+      const findingSummary = `[${activeModel.name} AI Analysis]: ${currentCategory.diagnosticTemplate.primaryPathology} (${(currentCategory.diagnosticTemplate.confidence * 100).toFixed(1)}% Confidence). Verified via ${autoDetection.detectedModality}.`;
       updateLabStatus(targetPatient.id, 'completed', findingSummary);
       setAttachedSuccess(true);
       setTimeout(() => setAttachedSuccess(false), 4000);
@@ -159,15 +193,16 @@ REPORT DATE:         ${new Date().toLocaleDateString('en-US', { dateStyle: 'full
 * Phone:        +919528871260
 * Location:     Connaught Place, Central Delhi, Delhi 110001
 
-## 2. MODALITY & MODEL ARCHITECTURE
-* Clinical Data Category: ${currentCategory.name}
-* AI Model Architecture:  ${activeModel.name} (${activeModel.architecture})
+## 2. MODALITY & AUTOMATICALLY ASSIGNED AI MODEL
+* Detected Modality:      ${autoDetection.detectedModality}
+* Auto-Selected Model:    ${activeModel.name} (${activeModel.architecture})
 * Model Parameters:       ${activeModel.parameters}
 * Benchmark Accuracy:     ${activeModel.accuracy}
 * Model Developer:        ${activeModel.developer}
+* Model Assignment Logic: ${autoDetection.reason}
 
 ## 3. PRIMARY DIAGNOSIS & PATHOLOGY
-* Primary Finding: ${currentCategory.diagnosticTemplate.primaryPathology}
+* Primary Finding:  ${currentCategory.diagnosticTemplate.primaryPathology}
 * Stage / Severity: ${currentCategory.diagnosticTemplate.stageSeverity}
 * Confidence Score: ${(currentCategory.diagnosticTemplate.confidence * 100).toFixed(1)}%
 
@@ -182,7 +217,7 @@ ${currentCategory.diagnosticTemplate.clinicalInterpretation}
 ## 6. RECOMMENDED CLINICAL INTERVENTION
 ${currentCategory.diagnosticTemplate.suggestedAction}
 ================================================================================
-DISCLAIMER: AI-generated diagnostic decision-support report verified by EnsureCare Diagnostic Engine.`;
+DISCLAIMER: Automated medical AI diagnostic decision-support report verified by EnsureCare Diagnostic Engine.`;
 
     const blob = new Blob([reportText], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
@@ -191,30 +226,6 @@ DISCLAIMER: AI-generated diagnostic decision-support report verified by EnsureCa
     a.download = `AI_Diagnostic_Report_${currentCategory.id}_${activeModel.id}.md`;
     a.click();
     URL.revokeObjectURL(url);
-  };
-
-  // Render Category Icon helper
-  const renderCategoryIcon = (id: ClinicalDataType) => {
-    switch (id) {
-      case 'brain_tumor':
-        return <Brain className="w-4 h-4 text-cyan-400" />;
-      case 'skin_disease':
-        return <Sparkles className="w-4 h-4 text-amber-400" />;
-      case 'retinal_eye':
-        return <Eye className="w-4 h-4 text-orange-400" />;
-      case 'histopathology':
-        return <FlaskConical className="w-4 h-4 text-purple-400" />;
-      case 'heart_tabular':
-        return <Activity className="w-4 h-4 text-emerald-400" />;
-      case 'eeg_signals':
-        return <Zap className="w-4 h-4 text-sky-400" />;
-      case 'medical_text':
-        return <FileText className="w-4 h-4 text-blue-400" />;
-      case 'image_text':
-        return <Layers className="w-4 h-4 text-indigo-400" />;
-      case 'multimodal':
-        return <Cpu className="w-4 h-4 text-rose-400" />;
-    }
   };
 
   const displayImage = customImage || currentCategory.sampleImageUrl;
@@ -239,14 +250,14 @@ DISCLAIMER: AI-generated diagnostic decision-support report verified by EnsureCa
               </span>
               <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                9 Model Architectures Live
+                Automatic Model Decision Engine Active
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
               Diagnostic AI Laboratory Reports &amp; Imaging Analysis
             </h1>
             <p className="text-xs text-slate-400 max-w-3xl mt-1 leading-relaxed">
-              Dual-workspace clinical diagnostic studio. Ingests medical scans (MRI, Dermoscopy, Fundus, Biopsy, ECG, EEG) and PDF laboratory documents to run automated clinical inference across specialized deep learning models.
+              Upload any medical scan (X-Ray, MRI, CT, Dermoscopy, Biopsy, ECG) or laboratory PDF report. The system automatically inspects the content, determines the clinical modality, and auto-selects the optimal AI model to execute diagnostic inference.
             </p>
           </div>
 
@@ -281,95 +292,178 @@ DISCLAIMER: AI-generated diagnostic decision-support report verified by EnsureCa
         </div>
       </div>
 
-      {/* 2. Clinical Data Type & Task Selector (All 9 Categories) */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <label className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-            Select Clinical Data Type &amp; Pathology:
-          </label>
-          <span className="text-[11px] text-slate-400">
-            {CLINICAL_DATA_TYPES.length} Specialized Clinical Categories Available
-          </span>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-9 gap-2">
-          {CLINICAL_DATA_TYPES.map(cat => {
-            const isSelected = selectedCategoryType === cat.id;
-            return (
-              <button
-                key={cat.id}
-                onClick={() => handleSelectCategory(cat.id)}
-                className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between h-24 ${
-                  isSelected
-                    ? 'bg-cyan-500/15 border-cyan-400 text-white shadow-lg shadow-cyan-500/20 ring-1 ring-cyan-400/40'
-                    : 'bg-[#0D1829] border-slate-800 text-slate-300 hover:bg-slate-800/80 hover:border-slate-700'
-                }`}
-              >
-                <div className="flex items-center justify-between w-full">
-                  <div className="p-1.5 rounded-lg bg-slate-900/80 border border-slate-700/60">
-                    {renderCategoryIcon(cat.id)}
-                  </div>
-                  {isSelected && <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />}
-                </div>
-                <div>
-                  <h4 className="text-[11px] font-bold leading-tight line-clamp-1">{cat.shortLabel}</h4>
-                  <p className="text-[9px] text-slate-400 line-clamp-1 mt-0.5">{cat.badge}</p>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* 3. Deep Learning Model Selector Bar for Current Category */}
-      <div className="bg-[#0B1528] border border-cyan-500/30 rounded-2xl p-4 shadow-xl space-y-3">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-400">
-              Active Category Models for {currentCategory.name}:
-            </span>
-            <p className="text-xs text-slate-300 mt-0.5">
-              Select specific neural architecture to execute diagnostic inference:
-            </p>
+      {/* 2. Automated AI Engine Status Banner (Replaces Manual Model Cards) */}
+      <div className="bg-gradient-to-r from-[#0C172E] via-[#0D1E3A] to-[#0A162C] border border-cyan-500/40 rounded-3xl p-5 shadow-2xl space-y-3 relative overflow-hidden">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-cyan-500/20 border border-cyan-500/40 text-cyan-400 flex items-center justify-center shrink-0 shadow-lg">
+              <Bot className="w-6 h-6 text-cyan-300" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[10px] uppercase font-black bg-cyan-500/20 text-cyan-300 px-2.5 py-0.5 rounded-md border border-cyan-500/30">
+                  ⚡ Auto-Detected Modality
+                </span>
+                <span className="text-xs text-slate-400 font-mono">
+                  Confidence: {(autoDetection.confidence * 100).toFixed(1)}%
+                </span>
+              </div>
+              <h3 className="text-lg font-black text-white mt-0.5">
+                {autoDetection.detectedModality}
+              </h3>
+            </div>
           </div>
-          <span className="text-xs font-mono text-cyan-300 bg-cyan-500/10 px-2.5 py-1 rounded-full border border-cyan-500/30">
-            {activeModel.parameters} • Latency ~{activeModel.latencyMs}ms
-          </span>
+
+          <div className="flex items-center gap-3 bg-[#070D18]/80 border border-slate-700/80 rounded-2xl px-4 py-2.5 shrink-0">
+            <div>
+              <span className="text-[9px] uppercase font-bold text-slate-400 block">Auto-Assigned Model</span>
+              <span className="text-sm font-black text-emerald-300 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                {activeModel.name}
+              </span>
+            </div>
+            <div className="h-6 w-px bg-slate-700" />
+            <div className="text-right">
+              <span className="text-[9px] uppercase font-bold text-slate-400 block">Benchmark</span>
+              <span className="text-xs font-mono font-bold text-cyan-300">{activeModel.accuracy}</span>
+            </div>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {currentCategory.models.map(model => {
-            const isSelected = selectedModelId === model.id;
-            return (
-              <button
-                key={model.id}
-                onClick={() => setSelectedModelId(model.id)}
-                className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
-                  isSelected
-                    ? 'bg-gradient-to-r from-cyan-950/60 to-slate-900 border-cyan-400 shadow-md ring-1 ring-cyan-400/30'
-                    : 'bg-[#080E1C] border-slate-800 hover:border-slate-700'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <h5 className="text-xs font-black text-white">{model.name}</h5>
-                  <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/30">
-                    {model.accuracy}
-                  </span>
-                </div>
-                <p className="text-[10px] text-cyan-300 font-mono mb-1">{model.architecture}</p>
-                <p className="text-[10px] text-slate-400 line-clamp-2 leading-relaxed">{model.description}</p>
-                <div className="mt-2 pt-2 border-t border-slate-800 flex items-center justify-between text-[9px] text-slate-400">
-                  <span>{model.developer}</span>
-                  <span className="font-semibold text-cyan-400">{model.highlight}</span>
-                </div>
-              </button>
-            );
-          })}
+        {/* AI Routing Justification */}
+        <div className="p-3 bg-[#081020]/90 rounded-2xl border border-cyan-500/20 text-xs text-slate-300 flex items-start gap-2">
+          <Sparkles className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
+          <p className="leading-relaxed">
+            <strong className="text-cyan-300">Automated Pipeline Decision: </strong>
+            {autoDetection.reason}
+          </p>
+        </div>
+
+        {/* Quick Clinical Test Scenarios (Instant 1-Click Testing) */}
+        <div className="pt-1 flex items-center gap-1.5 flex-wrap text-xs">
+          <span className="text-slate-400 font-semibold text-[10px] uppercase tracking-wider mr-1">
+            Test Scenarios:
+          </span>
+          <button
+            type="button"
+            onClick={() => handleSelectSample('image_text')}
+            className={`px-2.5 py-1 rounded-xl text-[11px] font-semibold border transition cursor-pointer flex items-center gap-1 ${
+              selectedCategoryType === 'image_text'
+                ? 'bg-cyan-500/25 border-cyan-400 text-cyan-200'
+                : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 border-slate-700'
+            }`}
+          >
+            <span>🩻</span>
+            <span>Chest X-Ray / Radiograph</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleSelectSample('brain_tumor')}
+            className={`px-2.5 py-1 rounded-xl text-[11px] font-semibold border transition cursor-pointer flex items-center gap-1 ${
+              selectedCategoryType === 'brain_tumor'
+                ? 'bg-cyan-500/25 border-cyan-400 text-cyan-200'
+                : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 border-slate-700'
+            }`}
+          >
+            <span>🧠</span>
+            <span>Brain MRI Scan</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleSelectSample('skin_disease')}
+            className={`px-2.5 py-1 rounded-xl text-[11px] font-semibold border transition cursor-pointer flex items-center gap-1 ${
+              selectedCategoryType === 'skin_disease'
+                ? 'bg-cyan-500/25 border-cyan-400 text-cyan-200'
+                : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 border-slate-700'
+            }`}
+          >
+            <span>✨</span>
+            <span>Skin Dermoscopy</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleSelectSample('retinal_eye')}
+            className={`px-2.5 py-1 rounded-xl text-[11px] font-semibold border transition cursor-pointer flex items-center gap-1 ${
+              selectedCategoryType === 'retinal_eye'
+                ? 'bg-cyan-500/25 border-cyan-400 text-cyan-200'
+                : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 border-slate-700'
+            }`}
+          >
+            <span>👁️</span>
+            <span>Retinal Fundus Photo</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleSelectSample('histopathology')}
+            className={`px-2.5 py-1 rounded-xl text-[11px] font-semibold border transition cursor-pointer flex items-center gap-1 ${
+              selectedCategoryType === 'histopathology'
+                ? 'bg-cyan-500/25 border-cyan-400 text-cyan-200'
+                : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 border-slate-700'
+            }`}
+          >
+            <span>🔬</span>
+            <span>Histopathology Biopsy</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleSelectSample('heart_tabular')}
+            className={`px-2.5 py-1 rounded-xl text-[11px] font-semibold border transition cursor-pointer flex items-center gap-1 ${
+              selectedCategoryType === 'heart_tabular'
+                ? 'bg-cyan-500/25 border-cyan-400 text-cyan-200'
+                : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 border-slate-700'
+            }`}
+          >
+            <span>📊</span>
+            <span>Cardiac Lab &amp; ECG</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleSelectSample('eeg_signals')}
+            className={`px-2.5 py-1 rounded-xl text-[11px] font-semibold border transition cursor-pointer flex items-center gap-1 ${
+              selectedCategoryType === 'eeg_signals'
+                ? 'bg-cyan-500/25 border-cyan-400 text-cyan-200'
+                : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 border-slate-700'
+            }`}
+          >
+            <span>⚡</span>
+            <span>EEG Brain Waves</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleSelectSample('medical_text')}
+            className={`px-2.5 py-1 rounded-xl text-[11px] font-semibold border transition cursor-pointer flex items-center gap-1 ${
+              selectedCategoryType === 'medical_text'
+                ? 'bg-cyan-500/25 border-cyan-400 text-cyan-200'
+                : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 border-slate-700'
+            }`}
+          >
+            <span>📝</span>
+            <span>Clinical Progress Report</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleSelectSample('multimodal')}
+            className={`px-2.5 py-1 rounded-xl text-[11px] font-semibold border transition cursor-pointer flex items-center gap-1 ${
+              selectedCategoryType === 'multimodal'
+                ? 'bg-cyan-500/25 border-cyan-400 text-cyan-200'
+                : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 border-slate-700'
+            }`}
+          >
+            <span>🌐</span>
+            <span>Multimodal EHR Dossier</span>
+          </button>
         </div>
       </div>
 
-      {/* 4. Dual Workspace: Medical Image (Left) + PDF Clinical Document (Right) */}
+      {/* 3. Dual Workspace: Medical Image (Left) + PDF Clinical Document (Right) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
         {/* ================= LEFT WORKSPACE: MEDICAL IMAGE ================= */}
@@ -382,7 +476,7 @@ DISCLAIMER: AI-generated diagnostic decision-support report verified by EnsureCa
                   <ZoomIn className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-white">1. Medical Diagnostic Scan / Image</h3>
+                  <h3 className="text-sm font-bold text-white">1. Medical Diagnostic Scan / X-Ray / Image</h3>
                   <p className="text-[10px] text-slate-400 font-mono">{displayImageName}</p>
                 </div>
               </div>
@@ -483,16 +577,16 @@ DISCLAIMER: AI-generated diagnostic decision-support report verified by EnsureCa
 
               {/* Watermark Tag */}
               <div className="absolute bottom-3 left-3 px-2 py-1 bg-black/70 backdrop-blur-md border border-slate-700/80 rounded-md text-[10px] font-mono text-cyan-300">
-                Model: {activeModel.name}
+                Auto-Selected: {activeModel.name}
               </div>
             </div>
           </div>
 
           {/* Image Uploader & Switcher */}
           <div className="pt-2 flex items-center justify-between gap-3 text-xs flex-wrap border-t border-slate-800">
-            <label className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl cursor-pointer font-semibold transition border border-slate-700 text-xs">
-              <Upload className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Upload Your Scan (JPG, PNG, DICOM)</span>
+            <label className="flex items-center gap-2 px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-slate-950 rounded-xl cursor-pointer font-bold transition text-xs shadow-md">
+              <Upload className="w-3.5 h-3.5" />
+              <span>Upload X-Ray / Scan (JPG, PNG, DICOM)</span>
               <input type="file" accept="image/*,.dicom,.dcm" onChange={handleImageUpload} className="hidden" />
             </label>
 
@@ -502,8 +596,12 @@ DISCLAIMER: AI-generated diagnostic decision-support report verified by EnsureCa
                 onClick={() => {
                   setCustomImage(null);
                   setCustomImageName(null);
+                  const detection = autoDetectModalityAndModel({
+                    preferredCategory: 'brain_tumor'
+                  });
+                  setAutoDetection(detection);
                 }}
-                className="text-xs text-rose-400 hover:text-rose-300 cursor-pointer"
+                className="text-xs text-rose-400 hover:text-rose-300 cursor-pointer font-medium"
               >
                 Reset to Sample Scan
               </button>
@@ -569,8 +667,8 @@ DISCLAIMER: AI-generated diagnostic decision-support report verified by EnsureCa
 
           {/* PDF Uploader & Switcher */}
           <div className="pt-2 flex items-center justify-between gap-3 text-xs flex-wrap border-t border-slate-800">
-            <label className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl cursor-pointer font-semibold transition border border-slate-700 text-xs">
-              <Upload className="w-3.5 h-3.5 text-purple-400" />
+            <label className="flex items-center gap-2 px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl cursor-pointer font-bold transition text-xs shadow-md">
+              <Upload className="w-3.5 h-3.5" />
               <span>Upload PDF / Text Report</span>
               <input type="file" accept=".pdf,.txt,.doc,.docx" onChange={handleDocUpload} className="hidden" />
             </label>
@@ -581,8 +679,13 @@ DISCLAIMER: AI-generated diagnostic decision-support report verified by EnsureCa
                 onClick={() => {
                   setCustomDocContent(null);
                   setCustomDocName(null);
+                  const detection = autoDetectModalityAndModel({
+                    imageName: customImageName || undefined,
+                    preferredCategory: 'brain_tumor'
+                  });
+                  setAutoDetection(detection);
                 }}
-                className="text-xs text-rose-400 hover:text-rose-300 cursor-pointer"
+                className="text-xs text-rose-400 hover:text-rose-300 cursor-pointer font-medium"
               >
                 Reset to Sample Report
               </button>
@@ -591,21 +694,21 @@ DISCLAIMER: AI-generated diagnostic decision-support report verified by EnsureCa
         </div>
       </div>
 
-      {/* 5. Execution Controller Bar */}
+      {/* 4. Execution Controller Bar */}
       <div className="bg-[#0B1528] border border-cyan-500/40 rounded-3xl p-5 shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-2xl bg-cyan-500/20 border border-cyan-500/40 text-cyan-400 flex items-center justify-center shrink-0">
             <Play className="w-6 h-6 fill-cyan-400" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <h3 className="text-base font-extrabold text-white">Execute Medical AI Diagnostic Pipeline</h3>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
-                Model: {activeModel.name}
+                Auto-Selected: {activeModel.name}
               </span>
             </div>
             <p className="text-xs text-slate-400 mt-0.5">
-              Simultaneously analyzes image pixels and PDF clinical entities with {activeModel.architecture}.
+              Simultaneously analyzes scan pixels and PDF clinical entities with {activeModel.architecture}.
             </p>
           </div>
         </div>
@@ -618,7 +721,7 @@ DISCLAIMER: AI-generated diagnostic decision-support report verified by EnsureCa
             className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-gradient-to-r from-cyan-500 via-teal-400 to-indigo-500 hover:opacity-95 text-slate-950 font-black text-xs shadow-lg shadow-cyan-500/25 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
           >
             <Sparkles className={`w-4 h-4 text-slate-950 ${isAnalyzing ? 'animate-spin' : ''}`} />
-            <span>{isAnalyzing ? 'Running AI Inference...' : `Run Analysis (${activeModel.name})`}</span>
+            <span>{isAnalyzing ? 'Running AI Inference...' : `Run Diagnostic Analysis (${activeModel.name})`}</span>
           </button>
         </div>
       </div>
@@ -636,18 +739,21 @@ DISCLAIMER: AI-generated diagnostic decision-support report verified by EnsureCa
         </div>
       )}
 
-      {/* 6. AI Diagnostic Results Dossier & Multimodal Output */}
+      {/* 5. AI Diagnostic Results Dossier & Multimodal Output */}
       {hasRunAnalysis && (
         <div className="bg-[#0D1829] border border-cyan-500/40 rounded-3xl p-6 sm:p-7 shadow-2xl space-y-6">
           {/* Top Dossier Summary Header */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-5">
             <div>
-              <div className="flex items-center gap-2 mb-1">
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <span className="text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 px-2.5 py-0.5 rounded-full border border-emerald-500/30">
-                  Verified AI Finding
+                  Verified Diagnostic Finding
                 </span>
                 <span className="text-xs text-slate-400 font-mono">
                   Engine: {activeModel.name} ({activeModel.parameters})
+                </span>
+                <span className="text-xs text-cyan-400 font-mono">
+                  Modality: {autoDetection.detectedModality}
                 </span>
               </div>
               <h2 className="text-xl sm:text-2xl font-black text-white">

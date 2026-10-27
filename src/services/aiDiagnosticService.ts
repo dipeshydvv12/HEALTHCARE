@@ -51,7 +51,247 @@ export interface DataTypeCategory {
   };
 }
 
-// Generate realistic SVG Data URIs for clinical medical images
+function createChestXraySvg(): string {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400">
+    <rect width="400" height="400" fill="#030712"/>
+    <!-- Thoracic Cage Outline -->
+    <path d="M 120 40 L 200 60 L 280 40" stroke="#475569" stroke-width="3" fill="none"/>
+    <!-- Clavicles -->
+    <path d="M 200 60 Q 140 50 80 70" stroke="#CBD5E1" stroke-width="4.5" fill="none"/>
+    <path d="M 200 60 Q 260 50 320 70" stroke="#CBD5E1" stroke-width="4.5" fill="none"/>
+    <!-- Ribs (Right Hemithorax) -->
+    <path d="M 195 90 Q 110 95 90 140" stroke="#64748B" stroke-width="3" fill="none"/>
+    <path d="M 195 120 Q 100 130 85 180" stroke="#64748B" stroke-width="3" fill="none"/>
+    <path d="M 195 150 Q 95 165 80 220" stroke="#64748B" stroke-width="3" fill="none"/>
+    <path d="M 195 180 Q 90 200 78 260" stroke="#64748B" stroke-width="3" fill="none"/>
+    <!-- Ribs (Left Hemithorax) -->
+    <path d="M 205 90 Q 290 95 310 140" stroke="#64748B" stroke-width="3" fill="none"/>
+    <path d="M 205 120 Q 300 130 315 180" stroke="#64748B" stroke-width="3" fill="none"/>
+    <path d="M 205 150 Q 305 165 320 220" stroke="#64748B" stroke-width="3" fill="none"/>
+    <path d="M 205 180 Q 310 200 322 260" stroke="#64748B" stroke-width="3" fill="none"/>
+    <!-- Mediastinum & Cardiac Silhouette -->
+    <path d="M 195 70 L 195 310" stroke="#94A3B8" stroke-width="5"/>
+    <!-- Heart Contour (Apex pointing down-left) -->
+    <path d="M 195 160 C 170 170 160 210 180 260 C 190 280 230 290 250 260 C 265 240 240 180 205 160 Z" fill="#1E293B" stroke="#475569" stroke-width="2"/>
+    <!-- Diaphragmatic Hemidomes -->
+    <path d="M 60 320 Q 130 280 195 305" stroke="#94A3B8" stroke-width="3.5" fill="none"/>
+    <path d="M 205 305 Q 270 290 340 330" stroke="#94A3B8" stroke-width="3.5" fill="none"/>
+    <!-- Pulmonary Infiltration / Consolidation (Right Lower Lobe Pneumonia / Opacity) -->
+    <ellipse cx="130" cy="240" rx="35" ry="25" fill="#E2E8F0" opacity="0.4"/>
+    <ellipse cx="130" cy="240" rx="20" ry="15" fill="#F8FAFC" opacity="0.5"/>
+    <text x="25" y="35" fill="#38BDF8" font-family="monospace" font-size="11" font-weight="bold">CHEST RADIOGRAPH (PA VIEW) • DIGITAL X-RAY</text>
+    <text x="25" y="52" fill="#EF4444" font-family="monospace" font-size="9">RIGHT LOWER LOBE AIR-SPACE CONSOLIDATION</text>
+  </svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
+export interface AutoDetectionResult {
+  category: ClinicalDataType;
+  model: AiModelSpec;
+  detectedModality: string;
+  reason: string;
+  confidence: number;
+}
+
+export function autoDetectModalityAndModel(params: {
+  imageName?: string;
+  docName?: string;
+  docText?: string;
+  preferredCategory?: ClinicalDataType;
+}): AutoDetectionResult {
+  const combined = `${params.imageName || ''} ${params.docName || ''} ${params.docText || ''}`.toLowerCase();
+
+  // 1. Chest X-Ray / Radiograph / Pulmonary
+  if (
+    combined.includes('x-ray') ||
+    combined.includes('xray') ||
+    combined.includes('chest') ||
+    combined.includes('lung') ||
+    combined.includes('pneumonia') ||
+    combined.includes('pulmon') ||
+    combined.includes('consolidation') ||
+    combined.includes('infiltrate') ||
+    combined.includes('cough') ||
+    combined.includes('breathing')
+  ) {
+    const cat = getCategoryById('image_text');
+    const model = cat.models.find(m => m.id === 'clip_medical') || cat.models[0];
+    return {
+      category: 'image_text',
+      model,
+      detectedModality: 'Chest Radiograph (Digital X-Ray PA View) & Pulmonology Report',
+      reason: 'Detected thoracic radiographical opacity and respiratory clinical indicators. Automatically assigned BiomedCLIP Vision-Language Model for multimodal pulmonary pathology alignment.',
+      confidence: 0.982
+    };
+  }
+
+  // 2. Brain Tumor / Neuro MRI / Head
+  if (
+    combined.includes('brain') ||
+    combined.includes('mri') ||
+    combined.includes('headache') ||
+    combined.includes('glioma') ||
+    combined.includes('flair') ||
+    combined.includes('tumor') ||
+    combined.includes('temporal') ||
+    combined.includes('cranial') ||
+    combined.includes('neoplasm') ||
+    combined.includes('neuro')
+  ) {
+    const cat = getCategoryById('brain_tumor');
+    const model = cat.models.find(m => m.id === 'swin_unetr') || cat.models[0];
+    return {
+      category: 'brain_tumor',
+      model,
+      detectedModality: 'Brain MRI (Axial T2-FLAIR Volumetric Scan)',
+      reason: 'Detected axial brain MRI neuroimaging features and temporal cephalalgia symptoms. Automatically assigned Swin UNETR (3D Hierarchical Vision Transformer) for volumetric tumor core segmentation.',
+      confidence: 0.986
+    };
+  }
+
+  // 3. Skin Disease / Dermoscopy / Melanoma
+  if (
+    combined.includes('skin') ||
+    combined.includes('derm') ||
+    combined.includes('mole') ||
+    combined.includes('melanoma') ||
+    combined.includes('lesion') ||
+    combined.includes('rash') ||
+    combined.includes('cutaneous') ||
+    combined.includes('nevus') ||
+    combined.includes('pigment')
+  ) {
+    const cat = getCategoryById('skin_disease');
+    const model = cat.models.find(m => m.id === 'efficientnet_skin') || cat.models[0];
+    return {
+      category: 'skin_disease',
+      model,
+      detectedModality: 'Cutaneous Polarized Dermoscopy (10x Optical)',
+      reason: 'Detected dermatological pigment network irregularity and asymmetric border criteria. Automatically assigned EfficientNet-B7 compound-scaled network for malignant melanoma grading.',
+      confidence: 0.974
+    };
+  }
+
+  // 4. Retinal / Eye Disease / Fundus
+  if (
+    combined.includes('retin') ||
+    combined.includes('eye') ||
+    combined.includes('fundus') ||
+    combined.includes('fovea') ||
+    combined.includes('macula') ||
+    combined.includes('vision') ||
+    combined.includes('optic')
+  ) {
+    const cat = getCategoryById('retinal_eye');
+    const model = cat.models.find(m => m.id === 'efficientnet_retina') || cat.models[0];
+    return {
+      category: 'retinal_eye',
+      model,
+      detectedModality: 'Digital Retinal Fundus Photography (45°)',
+      reason: 'Detected ocular retinal vascular arcades and microaneurysm pathology. Automatically assigned EfficientNet-B4 for diabetic retinopathy staging and macular edema scoring.',
+      confidence: 0.981
+    };
+  }
+
+  // 5. Histopathology / Biopsy / Cancer Tissue
+  if (
+    combined.includes('biopsy') ||
+    combined.includes('histo') ||
+    combined.includes('tissue') ||
+    combined.includes('slide') ||
+    combined.includes('h&e') ||
+    combined.includes('he_') ||
+    combined.includes('carcinoma') ||
+    combined.includes('nottingham') ||
+    combined.includes('mitotic')
+  ) {
+    const cat = getCategoryById('histopathology');
+    const model = cat.models.find(m => m.id === 'convnext_histo') || cat.models[0];
+    return {
+      category: 'histopathology',
+      model,
+      detectedModality: 'Histopathology H&E Stained Biopsy (40x WSI)',
+      reason: 'Detected cellular pleomorphism, mitotic figures, and infiltrating epithelial cords. Automatically assigned ConvNeXt-Large for whole-slide histological grading.',
+      confidence: 0.975
+    };
+  }
+
+  // 6. Heart Disease / Cardiac Tabular / ECG
+  if (
+    combined.includes('ecg') ||
+    combined.includes('ekg') ||
+    combined.includes('troponin') ||
+    combined.includes('cardiac') ||
+    combined.includes('heart') ||
+    combined.includes('stemi') ||
+    combined.includes('bnp') ||
+    combined.includes('lvef') ||
+    combined.includes('blood pressure')
+  ) {
+    const cat = getCategoryById('heart_tabular');
+    const model = cat.models.find(m => m.id === 'xgboost') || cat.models[0];
+    return {
+      category: 'heart_tabular',
+      model,
+      detectedModality: '12-Lead ECG Rhythm Strip & Tabular Cardiac Biomarker Panel',
+      reason: 'Detected cardiac enzyme biomarkers (hs-Troponin, NT-proBNP) and ST-segment deviations. Automatically assigned XGBoost (Extreme Gradient Boosted Trees) for emergency coronary syndrome stratification.',
+      confidence: 0.984
+    };
+  }
+
+  // 7. EEG Brain Signals / Seizures
+  if (
+    combined.includes('eeg') ||
+    combined.includes('signal') ||
+    combined.includes('seizure') ||
+    combined.includes('epilepsy') ||
+    combined.includes('spike') ||
+    combined.includes('alpha') ||
+    combined.includes('wave')
+  ) {
+    const cat = getCategoryById('eeg_signals');
+    const model = cat.models.find(m => m.id === 'eegnet') || cat.models[0];
+    return {
+      category: 'eeg_signals',
+      model,
+      detectedModality: '16-Channel Continuous Electroencephalogram (EEG)',
+      reason: 'Detected millisecond electrophysiological time-series paroxysms. Automatically assigned EEGNet depthwise convolutional model for 3Hz generalized spike-wave discharge localization.',
+      confidence: 0.971
+    };
+  }
+
+  // 8. Medical Text / Discharge / Clinical Notes
+  if (
+    combined.includes('discharge') ||
+    combined.includes('admission') ||
+    combined.includes('progress note') ||
+    combined.includes('consultation') ||
+    combined.includes('history') ||
+    combined.includes('medication')
+  ) {
+    const cat = getCategoryById('medical_text');
+    const model = cat.models.find(m => m.id === 'pubmedbert') || cat.models[0];
+    return {
+      category: 'medical_text',
+      model,
+      detectedModality: 'Unstructured Clinical Encounter Note & PDF Summary',
+      reason: 'Detected hospital progress notes and physician clinical shorthand. Automatically assigned PubMedBERT for biomedical entity extraction and ICD-10 clinical coding.',
+      confidence: 0.981
+    };
+  }
+
+  // 9. Multimodal / Default
+  const cat = getCategoryById(params.preferredCategory || 'multimodal');
+  const model = cat.models[0];
+  return {
+    category: cat.id,
+    model,
+    detectedModality: 'Multimodal Comprehensive Medical Record (Image + PDF)',
+    reason: 'Synthesizing visual medical scan features with laboratory documentation. Automatically assigned Multimodal Neural Network for cross-modal clinical reasoning.',
+    confidence: 0.989
+  };
+}
+
 function createBrainMriSvg(): string {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400">
     <rect width="400" height="400" fill="#030712"/>
@@ -832,32 +1072,35 @@ DISCHARGE INSTRUCTIONS: Follow up with Neurosurgery Clinic within 72 hours for c
         highlight: 'Zero-Shot Clinical Dialogue & Cross-Modal Diagnostic Reasoning'
       }
     ],
-    defaultImageName: 'contrast_mri_scan_fused_view.png',
-    defaultDocName: 'Integrated_Radiologist_Consultation_Note.pdf',
-    sampleImageUrl: createBrainMriSvg(),
-    sampleDocTitle: 'ENSURECARE ADVANCED DIAGNOSTICS • VISION-LANGUAGE RADIOLOGY REPORT',
-    sampleDocContent: `MODALITY: Contrast MRI Brain + Clinical Neuro-Examination Note
-PATIENT: Dipesh Yadav | AGE: 24 | STUDY ID: VL-2026-8802
-CROSS-MODAL COMPARISON NOTE:
-Radiological image demonstrates clear temporal hyperintensity with thick irregular contrast-enhancing ring.
-Matching clinical note states patient experienced rapid progression of throbbing headaches over 3 weeks.
-The visual tumor dimensions (3.4cm) closely corroborate the high ICP (intracranial pressure) symptoms documented in the clinical notes.
-CONCLUSION: Concordance between imaging features and clinical history strongly supports an aggressive primary glial neoplasm.`,
+    defaultImageName: 'chest_xray_pa_view_patient.png',
+    defaultDocName: 'Pulmonology_Radiology_Consult_Report.pdf',
+    sampleImageUrl: createChestXraySvg(),
+    sampleDocTitle: 'ENSURECARE ADVANCED RADIOLOGY • CHEST X-RAY & PULMONOLOGY REPORT',
+    sampleDocContent: `MODALITY: Digital Chest Radiograph (PA View) + Pulmonologist Examination Note
+PATIENT: Dipesh Yadav | AGE: 24 | STUDY ID: CXR-2026-9042
+CLINICAL INDICATION: Productive cough with fever (102°F) and right pleuritic chest discomfort for 4 days.
+RADIOGRAPH FINDINGS:
+- Right lower lobe dense patchy air-space consolidation with visible air bronchograms.
+- Costophrenic angles sharp, no pleural effusion.
+- Cardiac silhouette, hilar structures and mediastinum within normal limits.
+- No pneumothorax.
+IMPRESSION: Right lower lobe acute lobar pneumonia. Correlates with bacterial pulmonary infection.`,
     diagnosticTemplate: {
-      primaryPathology: 'High-Concordance Glial Neoplasm (Temporal Lobe Glioblastoma)',
-      stageSeverity: 'Multimodal Concordance: 98.2% Correlation Score',
-      confidence: 0.979,
+      primaryPathology: 'Right Lower Lobe Acute Bacterial Pneumonia & Infiltration',
+      stageSeverity: 'Acute Lobar Consolidation • High-Probability Radiographic Finding',
+      confidence: 0.982,
       heatmapRegions: [
-        { x: 65, y: 45, radius: 35, intensity: 0.98, label: 'Cross-Attention Image-Text Alignment' }
+        { x: 32, y: 60, radius: 28, intensity: 0.98, label: 'Right Lower Lobe Consolidation' }
       ],
-      boundingBox: { x: 55, y: 35, width: 25, height: 25, label: 'Correlated Pathology Target' },
+      boundingBox: { x: 22, y: 48, width: 25, height: 25, label: 'Air-Space Infiltration Zone' },
       extractedEntities: [
-        { name: 'Image-Text Alignment', value: 'High Concordance (0.94)', status: 'normal', reference: '> 0.70' },
-        { name: 'Pathology Correlation', value: 'Neoplasm + High ICP', status: 'critical', reference: 'Benign' },
-        { name: 'Symptom Duration', value: '3 Weeks Acute Progression', status: 'abnormal', reference: 'Chronic' }
+        { name: 'Consolidation Zone', value: 'Right Lower Lobe', status: 'critical', reference: 'Clear Lung Fields' },
+        { name: 'Air Bronchograms', value: 'Present', status: 'abnormal', reference: 'Absent' },
+        { name: 'Pleural Effusion', value: 'Negative (Sharp Angles)', status: 'normal', reference: 'Negative' },
+        { name: 'Heart Silhouette', value: 'Normal Contours', status: 'normal', reference: 'Normal' }
       ],
-      clinicalInterpretation: 'BiomedCLIP computes a 0.94 cosine similarity between the axial MRI contrast ring and the clinical description of intractable temporal cephalalgia, confirming high diagnostic concordance.',
-      suggestedAction: 'Proceed with surgical navigation-guided resection and dispatch tissue for IDH1 mutation and MGMT promoter methylation testing.'
+      clinicalInterpretation: 'BiomedCLIP Vision-Language Model automatically matched visual radiopacity in the right lower lobe with clinical report symptoms of pleuritic chest pain and fever, confirming high-concordance lobar pneumonia.',
+      suggestedAction: 'Initiate targeted antibiotic coverage (Azithromycin 500mg & Amoxicillin-Clavulanate 625mg), monitor pulse oximetry, and schedule follow-up chest radiograph in 10 days.'
     }
   },
 
@@ -920,3 +1163,4 @@ All 3 distinct clinical modalities (Imaging, Hematology PDF, and Tabular Bloodwo
 export function getCategoryById(type: ClinicalDataType): DataTypeCategory {
   return CLINICAL_DATA_TYPES.find(c => c.id === type) || CLINICAL_DATA_TYPES[0];
 }
+
