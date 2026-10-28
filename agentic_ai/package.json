@@ -1,0 +1,17 @@
+{
+  "name": "ensurecare-agentic-ai",
+  "version": "1.0.0",
+  "description": "EnsureCare Autonomous Healthcare Multi-Agent Clinical AI System",
+  "main": "dist/testAgent.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "test": "node --loader ts-node/esm src/testAgent.ts"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^22.13.4",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3"
+  }
+}

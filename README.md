@@ -5,6 +5,33 @@
 
 ---
 
+## 📁 Monorepo Project Structure
+
+The platform is structured into three dedicated modular tiers:
+
+```
+├── frontend/             # 🖥️ Client UI (React 18, Vite, TypeScript, Tailwind CSS)
+│   ├── src/              # Views (Doctor Desk, Lab, Pharmacy, Tracker, Medical Records)
+│   ├── index.html        # Single-page application template
+│   └── package.json      # Frontend client dependencies
+│
+├── backend/              # ⚙️ Telephony & Records API (Node.js, Express, Twilio)
+│   ├── src/routes/       # Twilio voice calling, patient encounter persistence, lab tracking
+│   ├── src/services/     # Twilio Voice API, Markdown/JSON archival to disk
+│   └── package.json      # Backend server dependencies
+│
+├── agentic_ai/           # 🧠 Autonomous Multi-Agent Clinical Decision Engine
+│   ├── src/agents/       # DiagnosticAgent, ReportAnalysisAgent, WatchdogAgent, VoiceAgent
+│   ├── src/models/       # 9 clinical modalities, 18 neural architectures (BiomedCLIP, Swin UNETR)
+│   ├── src/pipelines/    # Automated cross-modal inference & Grad-CAM heatmap mapping
+│   ├── python/           # Python native agentic AI implementation
+│   └── package.json      # Agentic AI dependencies & test runners
+│
+└── patient_records/      # 📄 Permanent disk storage of clinical encounter documents (.md & .json)
+```
+
+---
+
 ## 🌟 Executive Summary
 
 Healthcare follow-ups frequently fail because clinics, laboratories, pharmacies, referral specialists, and patients operate in silos. In standard outpatient care:
