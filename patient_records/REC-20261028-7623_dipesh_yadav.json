@@ -1,0 +1,50 @@
+{
+  "id": "REC-20261028-7623",
+  "patientId": "pat-3398",
+  "patientName": "Dipesh Yadav",
+  "patientAge": 20,
+  "patientGender": "Male",
+  "patientPhone": "9667651600",
+  "patientLocation": "Connaught Place, Central Delhi, Delhi 110001",
+  "visitTimestamp": "2026-10-28T00:00:10.689Z",
+  "purposeOfVisit": "Chest pain",
+  "examiningDoctor": "Dr. Michael Hayes, MD (Senior Attending Physician)",
+  "clinicName": "Max Multi Speciality Centre",
+  "clinicAddress": "N-110, Panchsheel Park, New Delhi, Delhi 110017",
+  "clinicGoogleMaps": "https://www.google.com/maps/search/?api=1&query=Max+Multi+Speciality+Centre+Panchsheel+Park+New+Delhi",
+  "doctorNotes": "Patient examined for \"Chest pain\". Prescribed Furosemide (Lasix) 40mg & Carvedilol 12.5mg. Ordered Cardiac Biomarker (NT-proBNP & Troponin I) + 12-Lead ECG. Referred to Dr. Devi Prasad Shetty, MS, FRCS.",
+  "diagnosis": "Patient examined for \"Chest pain\". Prescribed Furosemide (Lasix) 40mg & Carvedilol 12.5mg. Ordered Cardiac Biomarker (NT-proBNP & Troponin I) + 12-Lead ECG. Referred to Dr. Devi Prasad Shetty, MS, FRCS.",
+  "medication": {
+    "prescribed": true,
+    "name": "Furosemide (Lasix) 40mg & Carvedilol 12.5mg",
+    "dosage": "40 mg once every morning",
+    "instructions": "Take in the morning with a full glass of water. Monitor blood pressure and daily body weight regularly.",
+    "pharmacyName": "Apollo Pharmacy 24x7 Express",
+    "pharmacyAddress": "Shop No. 4, Community Centre, New Friends Colony, New Delhi, Delhi 110025",
+    "pharmacyGoogleMaps": "https://www.google.com/maps/search/?api=1&query=Apollo+Pharmacy+New+Friends+Colony+New+Delhi"
+  },
+  "laboratory": {
+    "ordered": true,
+    "testName": "Cardiac Biomarker (NT-proBNP & Troponin I) + 12-Lead ECG",
+    "priority": "Urgent",
+    "appointmentDate": "2026-10-28",
+    "appointmentTime": "10:30 AM",
+    "facilityName": "Dr. Lal PathLabs National Reference Laboratory",
+    "facilityAddress": "Block E, Sector 18, Rohini, New Delhi, Delhi 110085",
+    "facilityGoogleMaps": "https://www.google.com/maps/search/?api=1&query=Dr+Lal+PathLabs+National+Reference+Lab+Rohini+Delhi"
+  },
+  "referral": {
+    "referred": true,
+    "specialist": "Cardiologist",
+    "famousDoctorName": "Dr. Devi Prasad Shetty, MS, FRCS",
+    "famousHospital": "Narayana Institute of Cardiac Sciences",
+    "googleMapsUrl": "https://www.google.com/maps/search/?api=1&query=Narayana%20Institute%20of%20Cardiac%20Sciences",
+    "reason": "Acute cardiac evaluation, 2D-Echocardiogram and myocardial strain biomarker review"
+  },
+  "followUp": {
+    "scheduledDate": "2026-11-03",
+    "scheduledTime": "11:00 AM"
+  },
+  "savedPermanently": true,
+  "filePath": "patient_records/REC-20261028-7623_dipesh_yadav.md"
+}

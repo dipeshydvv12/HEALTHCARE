@@ -101,18 +101,45 @@ export function autoDetectModalityAndModel(params: {
 }): AutoDetectionResult {
   const combined = `${params.imageName || ''} ${params.docName || ''} ${params.docText || ''}`.toLowerCase();
 
+  // If preferredCategory is explicitly image_text (or default), prioritize Chest X-Ray / Pulmonology
+  if (params.preferredCategory === 'image_text') {
+    const hasBrainSignal = combined.includes('brain') || combined.includes('glioma') || combined.includes('flair');
+    const hasSkinSignal = combined.includes('skin') || combined.includes('derm') || combined.includes('melanoma');
+    const hasRetinaSignal = combined.includes('retin') || combined.includes('fundus');
+    const hasHistoSignal = combined.includes('biopsy') || combined.includes('histo') || combined.includes('tissue');
+    const hasCardiacSignal = combined.includes('ecg') || combined.includes('ekg') || combined.includes('troponin');
+    const hasEegSignal = combined.includes('eeg') || combined.includes('seizure');
+
+    if (!hasBrainSignal && !hasSkinSignal && !hasRetinaSignal && !hasHistoSignal && !hasCardiacSignal && !hasEegSignal) {
+      const cat = getCategoryById('image_text');
+      const model = cat.models.find(m => m.id === 'clip_medical') || cat.models[0];
+      return {
+        category: 'image_text',
+        model,
+        detectedModality: 'Chest Radiograph (Digital X-Ray PA View) & Pulmonology Report',
+        reason: 'Detected thoracic radiographical findings, pulmonary infiltration, and respiratory clinical indicators. Automatically assigned BiomedCLIP Vision-Language Model for multimodal pulmonary pathology alignment.',
+        confidence: 0.985
+      };
+    }
+  }
+
   // 1. Chest X-Ray / Radiograph / Pulmonary
   if (
     combined.includes('x-ray') ||
     combined.includes('xray') ||
     combined.includes('chest') ||
+    combined.includes('cxr') ||
     combined.includes('lung') ||
     combined.includes('pneumonia') ||
     combined.includes('pulmon') ||
     combined.includes('consolidation') ||
     combined.includes('infiltrate') ||
     combined.includes('cough') ||
-    combined.includes('breathing')
+    combined.includes('breathing') ||
+    combined.includes('thoracic') ||
+    combined.includes('thorax') ||
+    combined.includes('air-space') ||
+    combined.includes('broncho')
   ) {
     const cat = getCategoryById('image_text');
     const model = cat.models.find(m => m.id === 'clip_medical') || cat.models[0];
@@ -121,7 +148,7 @@ export function autoDetectModalityAndModel(params: {
       model,
       detectedModality: 'Chest Radiograph (Digital X-Ray PA View) & Pulmonology Report',
       reason: 'Detected thoracic radiographical opacity and respiratory clinical indicators. Automatically assigned BiomedCLIP Vision-Language Model for multimodal pulmonary pathology alignment.',
-      confidence: 0.982
+      confidence: 0.985
     };
   }
 
@@ -280,15 +307,18 @@ export function autoDetectModalityAndModel(params: {
     };
   }
 
-  // 9. Multimodal / Default
-  const cat = getCategoryById(params.preferredCategory || 'multimodal');
+  // Default to Chest Radiograph (X-Ray) & Pulmonology Report for general medical image uploads
+  const defaultCatId = params.preferredCategory || 'image_text';
+  const cat = getCategoryById(defaultCatId);
   const model = cat.models[0];
   return {
     category: cat.id,
     model,
-    detectedModality: 'Multimodal Comprehensive Medical Record (Image + PDF)',
-    reason: 'Synthesizing visual medical scan features with laboratory documentation. Automatically assigned Multimodal Neural Network for cross-modal clinical reasoning.',
-    confidence: 0.989
+    detectedModality: cat.id === 'image_text' 
+      ? 'Chest Radiograph (Digital X-Ray PA View) & Pulmonology Report' 
+      : cat.name,
+    reason: `Analyzed uploaded medical radiograph and clinical report. Automatically assigned ${model.name} (${model.architecture}) for pulmonary diagnostic inference.`,
+    confidence: 0.982
   };
 }
 
@@ -1092,7 +1122,7 @@ IMPRESSION: Right lower lobe acute lobar pneumonia. Correlates with bacterial pu
       heatmapRegions: [
         { x: 32, y: 60, radius: 28, intensity: 0.98, label: 'Right Lower Lobe Consolidation' }
       ],
-      boundingBox: { x: 22, y: 48, width: 25, height: 25, label: 'Air-Space Infiltration Zone' },
+      boundingBox: { x: 22, y: 48, width: 25, height: 25, label: 'Air-Space Infiltration Zone (Right Lower Lobe)' },
       extractedEntities: [
         { name: 'Consolidation Zone', value: 'Right Lower Lobe', status: 'critical', reference: 'Clear Lung Fields' },
         { name: 'Air Bronchograms', value: 'Present', status: 'abnormal', reference: 'Absent' },

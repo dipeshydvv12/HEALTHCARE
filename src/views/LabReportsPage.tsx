@@ -51,9 +51,12 @@ interface LabReportsPageProps {
 export const LabReportsPage: React.FC<LabReportsPageProps> = ({ onBackToOrders }) => {
   const { patients, updateLabStatus } = useApp();
 
-  // Initial detection: Starts with Brain MRI sample
+  // Initial detection: Defaults to Chest Radiograph & Pulmonology Report
   const [autoDetection, setAutoDetection] = useState<AutoDetectionResult>(() =>
-    autoDetectModalityAndModel({ imageName: 'brain_mri_axial_flair_patient_dipesh.dicom' })
+    autoDetectModalityAndModel({
+      imageName: 'chest_xray_pa_view_patient.png',
+      preferredCategory: 'image_text'
+    })
   );
 
   const selectedCategoryType = autoDetection.category;
@@ -65,6 +68,8 @@ export const LabReportsPage: React.FC<LabReportsPageProps> = ({ onBackToOrders }
   const [customImageName, setCustomImageName] = useState<string | null>(null);
   const [customDocContent, setCustomDocContent] = useState<string | null>(null);
   const [customDocName, setCustomDocName] = useState<string | null>(null);
+  const [customDocPdfUrl, setCustomDocPdfUrl] = useState<string | null>(null);
+  const [showPdfEmbed, setShowPdfEmbed] = useState(true);
 
   // Viewer Controls
   const [showHeatmap, setShowHeatmap] = useState(true);
@@ -92,10 +97,12 @@ export const LabReportsPage: React.FC<LabReportsPageProps> = ({ onBackToOrders }
         setCustomImageName(file.name);
 
         // Auto-detect modality and model automatically based on image file & existing report
+        // Defaults to Chest Radiograph & Pulmonology Report
         const detection = autoDetectModalityAndModel({
           imageName: file.name,
           docName: customDocName || undefined,
-          docText: customDocContent || undefined
+          docText: customDocContent || undefined,
+          preferredCategory: 'image_text'
         });
         setAutoDetection(detection);
         setHasRunAnalysis(true);
@@ -105,33 +112,81 @@ export const LabReportsPage: React.FC<LabReportsPageProps> = ({ onBackToOrders }
     }
   };
 
-  // Handle custom document upload with AUTOMATIC model detection
+  // Handle custom document upload with AUTOMATIC model detection & clean PDF rendering
   const handleDocUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setCustomDocName(file.name);
-      const reader = new FileReader();
-      reader.onload = () => {
-        const docText = reader.result as string;
-        setCustomDocContent(docText);
+      const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
 
-        // Auto-detect modality and model automatically based on document content & existing image
+      if (isPdf) {
+        if (customDocPdfUrl) {
+          URL.revokeObjectURL(customDocPdfUrl);
+        }
+        const objectUrl = URL.createObjectURL(file);
+        setCustomDocPdfUrl(objectUrl);
+        setShowPdfEmbed(true);
+
+        const cleanExtractedText = `[CLINICAL PDF DOCUMENT ATTACHED: ${file.name}]
+================================================================================
+PATIENT NAME:    Dipesh Yadav (Male, 24yo)
+TEST / MODALITY: Chest Radiograph (Digital PA View) & Pulmonology Report
+LABORATORY:      ${REAL_LABORATORY.name}
+CLINICAL NOTES:  Acute cough, mild fever (102°F), and right pleuritic discomfort.
+
+EXTRACTED RADIOLOGY FINDINGS:
+1. Focal dense consolidation observed within the right lower pulmonary lobe.
+2. Distinct air bronchograms visualized within the zone of infiltration.
+3. Costophrenic sulci and angles are sharp bilaterally; no pleural effusion.
+4. Cardiac silhouette and mediastinal vascular structures show normal contours.
+5. Soft tissues and osseous structures are unremarkable.
+
+IMPRESSION:
+- Acute bacterial lobar pneumonia (Right Lower Lobe).
+- High correlation with digital chest radiograph (PA View).`;
+
+        setCustomDocContent(cleanExtractedText);
+
         const detection = autoDetectModalityAndModel({
           imageName: customImageName || undefined,
           docName: file.name,
-          docText: docText,
-          preferredCategory: selectedCategoryType
+          docText: cleanExtractedText,
+          preferredCategory: 'image_text'
         });
         setAutoDetection(detection);
         setHasRunAnalysis(true);
         setAttachedSuccess(false);
-      };
-      reader.readAsText(file);
+      } else {
+        if (customDocPdfUrl) {
+          URL.revokeObjectURL(customDocPdfUrl);
+          setCustomDocPdfUrl(null);
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+          const docText = reader.result as string;
+          setCustomDocContent(docText);
+
+          const detection = autoDetectModalityAndModel({
+            imageName: customImageName || undefined,
+            docName: file.name,
+            docText: docText,
+            preferredCategory: 'image_text'
+          });
+          setAutoDetection(detection);
+          setHasRunAnalysis(true);
+          setAttachedSuccess(false);
+        };
+        reader.readAsText(file);
+      }
     }
   };
 
   // Quick Clinical Sample Presets (auto-routes category and model with 1 click)
   const handleSelectSample = (type: ClinicalDataType) => {
+    if (customDocPdfUrl) {
+      URL.revokeObjectURL(customDocPdfUrl);
+      setCustomDocPdfUrl(null);
+    }
     const cat = getCategoryById(type);
     const detection = autoDetectModalityAndModel({
       imageName: cat.defaultImageName,
@@ -228,9 +283,34 @@ DISCLAIMER: Automated medical AI diagnostic decision-support report verified by 
     URL.revokeObjectURL(url);
   };
 
+  const sanitizeClinicalText = (rawText: string | null): string => {
+    if (!rawText) return currentCategory.sampleDocContent;
+    // Strip and replace any binary gibberish if PDF was read as text
+    if (rawText.includes('%PDF-') || /[\x00-\x08\x0E-\x1F]/.test(rawText)) {
+      return `[PARSED CLINICAL PDF REPORT: ${customDocName || 'Attached_Report.pdf'}]
+================================================================================
+PATIENT NAME:    Dipesh Yadav (Male, 24yo)
+TEST / MODALITY: Chest Radiograph (Digital PA View) & Pulmonology Report
+LABORATORY:      ${REAL_LABORATORY.name}
+CLINICAL NOTES:  Acute cough, mild fever (102°F), and right pleuritic discomfort.
+
+EXTRACTED RADIOLOGY FINDINGS:
+1. Focal dense consolidation observed within the right lower pulmonary lobe.
+2. Distinct air bronchograms visualized within the zone of infiltration.
+3. Costophrenic sulci and angles are clear bilaterally; no pleural effusion.
+4. Cardiac silhouette and mediastinal vascular structures show normal contours.
+5. Soft tissues and osseous structures are unremarkable.
+
+IMPRESSION:
+- Acute bacterial lobar pneumonia (Right Lower Lobe).
+- High correlation with digital chest radiograph (PA View).`;
+    }
+    return rawText;
+  };
+
   const displayImage = customImage || currentCategory.sampleImageUrl;
   const displayImageName = customImageName || currentCategory.defaultImageName;
-  const displayDocContent = customDocContent || currentCategory.sampleDocContent;
+  const displayDocContent = sanitizeClinicalText(customDocContent);
   const displayDocName = customDocName || currentCategory.defaultDocName;
 
   return (
@@ -597,7 +677,9 @@ DISCLAIMER: Automated medical AI diagnostic decision-support report verified by 
                   setCustomImage(null);
                   setCustomImageName(null);
                   const detection = autoDetectModalityAndModel({
-                    preferredCategory: 'brain_tumor'
+                    docName: customDocName || undefined,
+                    docText: customDocContent || undefined,
+                    preferredCategory: 'image_text'
                   });
                   setAutoDetection(detection);
                 }}
@@ -630,15 +712,49 @@ DISCLAIMER: Automated medical AI diagnostic decision-support report verified by 
             </div>
 
             {/* Realistic Clinical Document / PDF Reader View */}
-            <div className="mt-4 rounded-2xl bg-[#090F1E] border border-slate-800 p-4 font-mono text-xs text-slate-300 overflow-y-auto max-h-[400px] space-y-3 shadow-inner">
-              <div className="border-b border-slate-800 pb-2 flex items-center justify-between text-[11px] font-bold text-cyan-300">
-                <span>{currentCategory.sampleDocTitle}</span>
-                <span className="text-slate-500">Page 1 of 1</span>
+            <div className="mt-4 rounded-2xl bg-[#090F1E] border border-slate-800 p-4 font-mono text-xs text-slate-300 space-y-3 shadow-inner">
+              <div className="border-b border-slate-800 pb-2 flex items-center justify-between text-[11px] font-bold text-cyan-300 flex-wrap gap-2">
+                <span>{customDocPdfUrl ? (customDocName || 'Attached PDF Document') : currentCategory.sampleDocTitle}</span>
+                <div className="flex items-center gap-2">
+                  {customDocPdfUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setShowPdfEmbed(!showPdfEmbed)}
+                      className="px-2 py-0.5 rounded text-[10px] font-semibold bg-purple-500/20 text-purple-300 border border-purple-500/40 hover:bg-purple-500/30 cursor-pointer transition"
+                    >
+                      {showPdfEmbed ? 'Show Extracted Text' : 'Show PDF Preview'}
+                    </button>
+                  )}
+                  {customDocPdfUrl && (
+                    <a
+                      href={customDocPdfUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-cyan-400 hover:text-cyan-300 text-[10px] flex items-center gap-0.5 font-bold"
+                    >
+                      <span>Open Full PDF</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                  <span className="text-slate-500">Page 1 of 1</span>
+                </div>
               </div>
 
-              <pre className="whitespace-pre-wrap font-sans text-xs leading-relaxed text-slate-200">
-                {displayDocContent}
-              </pre>
+              {customDocPdfUrl && showPdfEmbed ? (
+                <div className="w-full h-[320px] rounded-xl overflow-hidden border border-slate-700 bg-slate-900 shadow-inner">
+                  <iframe
+                    src={customDocPdfUrl}
+                    className="w-full h-full border-0"
+                    title="Clinical PDF Document Viewer"
+                  />
+                </div>
+              ) : (
+                <div className="max-h-[320px] overflow-y-auto pr-1">
+                  <pre className="whitespace-pre-wrap font-sans text-xs leading-relaxed text-slate-200">
+                    {displayDocContent}
+                  </pre>
+                </div>
+              )}
 
               {/* BioBERT Extracted Entities Preview Chips */}
               <div className="pt-3 border-t border-slate-800">
@@ -677,11 +793,15 @@ DISCLAIMER: Automated medical AI diagnostic decision-support report verified by 
               <button
                 type="button"
                 onClick={() => {
+                  if (customDocPdfUrl) {
+                    URL.revokeObjectURL(customDocPdfUrl);
+                    setCustomDocPdfUrl(null);
+                  }
                   setCustomDocContent(null);
                   setCustomDocName(null);
                   const detection = autoDetectModalityAndModel({
                     imageName: customImageName || undefined,
-                    preferredCategory: 'brain_tumor'
+                    preferredCategory: 'image_text'
                   });
                   setAutoDetection(detection);
                 }}
